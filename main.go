@@ -1,66 +1,123 @@
 package main
 
-import "fmt"
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+)
 
-// Item ... 商品データ
 type Item struct {
 	Category string
 	Price    int
 }
 
 func main() {
-	// 入力するデータの件数
+
+	// "accountbook.txt"という名前のファイルを書き込み用で開く
+	file, err := os.Create("accountbook.txt")
+	// 開く場合にエラーが発生した場合
+	if err != nil {
+		// エラーを出力して終了する
+		log.Fatal(err)
+	}
+
+	// 入力するデータの件数を入力する
 	var n int
-	fmt.Print("何件入力しますか？>")
+	fmt.Print("何件入力しますか>")
 	fmt.Scan(&n)
 
-	// 複数のItem型の値を記録するためにItem型のスライスを定義
-	// 長さ0で容量がnのスライスを作る
-	items := make([]Item, 0, n)
+	// n回繰り返す
+	for i := 0; i < n; i++ {
+		if err := inputItem(file); err != nil {
+			// エラーを出力して終了する
+			log.Fatal(err)
+		}
+	}
 
-	// iが0からitemsの容量-1の間繰り返す
-	// cap(items)はitemsの容量を返す
-	for i := 0; i < cap(items); i++ {
-		items = inputItem(items)
+	if err := file.Close(); err != nil {
+		// エラーを出力して終了する
+		log.Fatal(err)
 	}
 
 	// 表示
-	showItems(items)
-
+	if err := showItems(); err != nil {
+		// エラーを出力して終了する
+		log.Fatal(err)
+	}
 }
 
-/*
-追加を行うItemのスライスを受け取る
-新しく入力したItemをスライスに追加して返す
-*/
-func inputItem(items []Item) []Item {
-	// Item型のitemを定義
+// 入力を行いファイルに保存する
+// エラーが発生した場合にはそのまま返す
+func inputItem(file *os.File) error {
 	var item Item
 
 	fmt.Print("品目>")
-	// 入力した値をitemのCategoryフィールドに入れる
 	fmt.Scan(&item.Category)
 
 	fmt.Print("値段>")
-	// 入力した値をitemのPriceフィールドに入れる
 	fmt.Scan(&item.Price)
 
-	// スライスに新しい入力したitemを追加
-	items = append(items, item)
-
-	return items
-}
-
-// 入力されたitemsを表示
-func showItems(items []Item) {
-	fmt.Println("=========")
-
-	// itemsの長さだけforを回す
-	// len(items)はitemsの長さを返す
-	for i := 0; i < len(items); i++ {
-		// items[i]はitemsのi番目の要素(0からスタートする)
-		fmt.Printf("%s:%d円\n", items[i].Category, items[i].Price)
+	// ファイルに書き出す
+	// 「品目 値段」のように書き出す
+	line := fmt.Sprintf("%s %d\n", item.Category, item.Price)
+	if _, err := file.WriteString(line); err != nil {
+		// エラーが発生した場合はエラーを返す
+		return err
 	}
 
-	fmt.Println("=========")
+	// エラーがなかったことを表すnilを返す
+	return nil
+}
+
+// 一覧の表示を行う関数
+func showItems() error {
+
+	// "accountbook.txt"という名前のファイルを読み込み用で開く
+	file, err := os.Open("accountbook.txt")
+	// 開く場合にエラーが発生した場合
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("===========")
+
+	scanner := bufio.NewScanner(file)
+	// 1行ずつ読み込む
+	for scanner.Scan() {
+		// 1行分を取り出す
+		line := scanner.Text()
+
+		// 1行をスペースで分割する
+		splited := strings.Split(line, " ")
+		// 2つに分割できなかった場合はエラー
+		if len(splited) != 2 {
+			// 「パースに失敗しました」というエラーを生成して返す
+			return errors.New("パースに失敗しました")
+		}
+
+		// 1つめが品目
+		category := splited[0]
+
+		// 2つめが値段
+		// string型をint型に変換する
+		price, err := strconv.Atoi(splited[1])
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("%s:%d円\n", category, price)
+	}
+
+	// エラーが発生したかどうか調べる
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	fmt.Println("===========")
+
+	return nil
 }
